@@ -2,11 +2,15 @@ from flask import Flask, render_template, jsonify
 from shift_report import fetch_shift_report
 from roster_report import fetch_player_roster
 import pandas as pd
+import os
+import json
 
 app = Flask(__name__)
 
-# Funkcja do przygotowania finalnego datasetu
-def prepare_dataset():
+DATA_FILE = "data.json"
+
+# Funkcja do przygotowania datasetu i zapisania do pliku
+def prepare_and_save_dataset():
     home = "WSH"
     away = "BUF"
     date = "2025-01-06"
@@ -30,6 +34,7 @@ def prepare_dataset():
         how="left"
     )
     merged_data_home.insert(merged_data_home.columns.get_loc("Player Name"), "Position", merged_data_home.pop("Position"))
+    merged_data_home["Team"] = "Home"  # Dodanie kolumny z drużyną
 
     # Scalanie danych dla drużyny wyjazdowej
     merged_data_away = pd.merge(
@@ -39,16 +44,31 @@ def prepare_dataset():
         how="left"
     )
     merged_data_away.insert(merged_data_away.columns.get_loc("Player Name"), "Position", merged_data_away.pop("Position"))
+    merged_data_away["Team"] = "Away"  # Dodanie kolumny z drużyną
 
     # Połączenie danych obu drużyn
     final_dataset = pd.concat([merged_data_home, merged_data_away], ignore_index=True)
-    return final_dataset
+
+    # Zapis do pliku
+    with open(DATA_FILE, "w") as f:
+        json.dump(final_dataset.to_dict(orient="list"), f)
+    print(f"Dane zapisane do pliku {DATA_FILE}")
+
+# Funkcja do odczytu danych z pliku
+def load_dataset():
+    if not os.path.exists(DATA_FILE):
+        return None
+    with open(DATA_FILE, "r") as f:
+        data = json.load(f)
+    return data
 
 # Endpoint do pobierania danych jako JSON
 @app.route("/data")
 def data():
-    dataset = prepare_dataset()
-    return jsonify(dataset.to_dict(orient="list"))
+    dataset = load_dataset()
+    if dataset is None:
+        return jsonify({"error": "Dane nie zostały jeszcze pobrane."}), 404
+    return jsonify(dataset)
 
 # Strona główna serwująca interfejs użytkownika
 @app.route("/")
@@ -56,4 +76,6 @@ def index():
     return render_template("index.html")
 
 if __name__ == "__main__":
+    # Pobieranie danych przy starcie serwera
+    prepare_and_save_dataset()
     app.run(debug=True)

@@ -1,45 +1,56 @@
 // Fetch data from the Flask server
 fetch("/data")
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error("Brak danych! Dane nie zostały jeszcze pobrane.");
+        }
+        return response.json();
+    })
     .then(data => {
-        // Przygotowanie danych
-        const labels = data["Player Name"];
-        const shiftCounts = data["Shift #"];
-        const durations = data["Duration"];
+        console.log("Otrzymane dane z API:", data);
 
-        // Wykres słupkowy
-        const barTrace = {
-            x: labels,
-            y: shiftCounts,
-            type: "bar",
-            marker: {
-                color: "rgba(55, 128, 191, 0.7)",
-                line: { color: "rgba(55, 128, 191, 1.0)", width: 2 }
-            },
-            name: "Shifts"
-        };
+        // Filtrowanie danych dla drużyny domowej i wyjazdowej
+        const homePlayers = data["Team"].map((team, index) => (team === "Home" ? index : null)).filter(x => x !== null);
+        const awayPlayers = data["Team"].map((team, index) => (team === "Away" ? index : null)).filter(x => x !== null);
 
-        const barLayout = {
-            title: "Liczba Shiftów dla Zawodników",
-            xaxis: { title: "Zawodnicy" },
-            yaxis: { title: "Liczba Shiftów" }
-        };
+        const homeLabels = homePlayers.map(index => data["Player Name"][index]);
+        const homeDurations = homePlayers.map(index => data["Duration"][index]);
+        const awayLabels = awayPlayers.map(index => data["Player Name"][index]);
+        const awayDurations = awayPlayers.map(index => data["Duration"][index]);
 
-        Plotly.newPlot("bar-chart", [barTrace], barLayout);
-
-        // Wykres kołowy
-        const pieTrace = {
-            labels: labels,
-            values: durations,
+        // Wykres kołowy dla drużyny domowej
+        const homePieTrace = {
+            labels: homeLabels,
+            values: homeDurations,
             type: "pie",
             textinfo: "label+percent",
-            hoverinfo: "label+value"
+            hoverinfo: "label+value",
+            name: "Home Team"
         };
 
-        const pieLayout = {
-            title: "Procentowy Czas Gry dla Zawodników"
+        const homePieLayout = {
+            title: "Procentowy Czas Gry - Drużyna Domowa"
         };
 
-        Plotly.newPlot("pie-chart", [pieTrace], pieLayout);
+        Plotly.newPlot("home-pie-chart", [homePieTrace], homePieLayout);
+
+        // Wykres kołowy dla drużyny wyjazdowej
+        const awayPieTrace = {
+            labels: awayLabels,
+            values: awayDurations,
+            type: "pie",
+            textinfo: "label+percent",
+            hoverinfo: "label+value",
+            name: "Away Team"
+        };
+
+        const awayPieLayout = {
+            title: "Procentowy Czas Gry - Drużyna Wyjazdowa"
+        };
+
+        Plotly.newPlot("away-pie-chart", [awayPieTrace], awayPieLayout);
     })
-    .catch(error => console.error("Error fetching data:", error));
+    .catch(error => {
+        console.error("Błąd:", error.message);
+        document.getElementById("chart-container").innerHTML = `<h2>${error.message}</h2>`;
+    });
